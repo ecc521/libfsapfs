@@ -66,6 +66,22 @@ uint8_t fsapfs_test_compression_stored_bad_sentinel[ 17 ] = {
 	0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
 	0x0f };
 
+/* LZFSE-compressed "The quick brown fox jumps over the lazy dog. " x20 (900 bytes plaintext, 84 bytes compressed)
+ * Generated on macOS 26.4 via compression_encode_buffer(COMPRESSION_LZFSE=0x801)
+ */
+uint8_t fsapfs_test_compression_lzfse_compressed_data1[ 84 ] = {
+	0x62, 0x76, 0x78, 0x6e, 0x84, 0x03, 0x00, 0x00, 0x44, 0x00, 0x00, 0x00, 0xe0, 0x10, 0x54, 0x68,
+	0x65, 0x20, 0x71, 0x75, 0x69, 0x63, 0x6b, 0x20, 0x62, 0x72, 0x6f, 0x77, 0x6e, 0x20, 0x66, 0x6f,
+	0x78, 0x20, 0x6a, 0x75, 0x6d, 0x70, 0x73, 0x20, 0x6f, 0x76, 0x65, 0x72, 0x20, 0x74, 0x00, 0x1f,
+	0xea, 0x6c, 0x61, 0x7a, 0x79, 0x20, 0x64, 0x6f, 0x67, 0x2e, 0x20, 0x38, 0x2d, 0xf0, 0xff, 0xf0,
+	0xff, 0xf0, 0xff, 0xf0, 0x0e, 0xe2, 0x2e, 0x20, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x62, 0x76, 0x78, 0x24 };
+
+/* 0xFF stored-chunk: sentinel byte + 16 bytes of raw data (LZFSE rsrc stored-chunk format) */
+uint8_t fsapfs_test_compression_lzfse_stored_chunk[ 17 ] = {
+	0xff, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+	0x0f };
+
 #if defined( __GNUC__ ) && !defined( LIBFSAPFS_DLL_IMPORT )
 
 /* Tests the libfsapfs_decompress_data function
@@ -75,8 +91,11 @@ int fsapfs_test_decompress_data(
      void )
 {
 	uint8_t uncompressed_data[ 16 ];
+	uint8_t lzfse_uncompressed_data[ 1024 ];
+	uint8_t lzfse_expected_data[ 900 ];
 
 	libcerror_error_t *error      = NULL;
+	size_t lzfse_phrase_index     = 0;
 	size_t uncompressed_data_size = 0;
 	int result                    = 0;
 
@@ -276,6 +295,89 @@ int fsapfs_test_decompress_data(
 
 	libcerror_error_free(
 	 &error );
+
+	/* Test LZFSE (types 11 and 12): real compressed data generated on macOS 26.4
+	 */
+	uncompressed_data_size = 1024;
+
+	result = libfsapfs_decompress_data(
+	          fsapfs_test_compression_lzfse_compressed_data1,
+	          84,
+	          LIBFSAPFS_COMPRESSION_METHOD_LZFSE,
+	          lzfse_uncompressed_data,
+	          &uncompressed_data_size,
+	          &error );
+
+	FSAPFS_TEST_ASSERT_EQUAL_INT(
+	 "result",
+	 result,
+	 1 );
+
+	FSAPFS_TEST_ASSERT_EQUAL_SIZE(
+	 "uncompressed_data_size",
+	 uncompressed_data_size,
+	 (size_t) 900 );
+
+	FSAPFS_TEST_ASSERT_IS_NULL(
+	 "error",
+	 error );
+
+	/* The plaintext is "The quick brown fox jumps over the lazy dog. " (45 bytes) repeated 20 times
+	 */
+	for( lzfse_phrase_index = 0;
+	     lzfse_phrase_index < 20;
+	     lzfse_phrase_index++ )
+	{
+		memory_copy(
+		 &( lzfse_expected_data[ lzfse_phrase_index * 45 ] ),
+		 "The quick brown fox jumps over the lazy dog. ",
+		 45 );
+	}
+	result = memory_compare(
+	          lzfse_uncompressed_data,
+	          lzfse_expected_data,
+	          900 );
+
+	FSAPFS_TEST_ASSERT_EQUAL_INT(
+	 "result",
+	 result,
+	 0 );
+
+	/* Test LZFSE 0xFF stored-chunk (rsrc fork uncompressed block)
+	 */
+	uncompressed_data_size = 16;
+
+	result = libfsapfs_decompress_data(
+	          fsapfs_test_compression_lzfse_stored_chunk,
+	          17,
+	          LIBFSAPFS_COMPRESSION_METHOD_LZFSE,
+	          uncompressed_data,
+	          &uncompressed_data_size,
+	          &error );
+
+	FSAPFS_TEST_ASSERT_EQUAL_INT(
+	 "result",
+	 result,
+	 1 );
+
+	FSAPFS_TEST_ASSERT_EQUAL_SIZE(
+	 "uncompressed_data_size",
+	 uncompressed_data_size,
+	 (size_t) 16 );
+
+	FSAPFS_TEST_ASSERT_IS_NULL(
+	 "error",
+	 error );
+
+	result = memory_compare(
+	          uncompressed_data,
+	          fsapfs_test_compression_uncompressed_data1,
+	          16 );
+
+	FSAPFS_TEST_ASSERT_EQUAL_INT(
+	 "result",
+	 result,
+	 0 );
 
 	/* Test error cases
 	 */
@@ -664,6 +766,108 @@ int fsapfs_test_decompress_data(
 	          fsapfs_test_compression_stored_data1,
 	          17,
 	          LIBFSAPFS_COMPRESSION_METHOD_STORED,
+	          uncompressed_data,
+	          &uncompressed_data_size,
+	          &error );
+
+	if( fsapfs_test_memcpy_attempts_before_fail != -1 )
+	{
+		fsapfs_test_memcpy_attempts_before_fail = -1;
+	}
+	else
+	{
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 -1 );
+
+		FSAPFS_TEST_ASSERT_IS_NOT_NULL(
+		 "error",
+		 error );
+
+		libcerror_error_free(
+		 &error );
+	}
+#endif /* defined( HAVE_FSAPFS_TEST_MEMORY ) && defined( OPTIMIZATION_DISABLED ) */
+
+	uncompressed_data_size = 16;
+
+	result = libfsapfs_decompress_data(
+	          fsapfs_test_compression_lzfse_stored_chunk,
+	          (size_t) SSIZE_MAX + 1,
+	          LIBFSAPFS_COMPRESSION_METHOD_LZFSE,
+	          uncompressed_data,
+	          &uncompressed_data_size,
+	          &error );
+
+	FSAPFS_TEST_ASSERT_EQUAL_INT(
+	 "result",
+	 result,
+	 -1 );
+
+	FSAPFS_TEST_ASSERT_IS_NOT_NULL(
+	 "error",
+	 error );
+
+	libcerror_error_free(
+	 &error );
+
+	uncompressed_data_size = 0;
+
+	result = libfsapfs_decompress_data(
+	          fsapfs_test_compression_lzfse_stored_chunk,
+	          17,
+	          LIBFSAPFS_COMPRESSION_METHOD_LZFSE,
+	          uncompressed_data,
+	          &uncompressed_data_size,
+	          &error );
+
+	FSAPFS_TEST_ASSERT_EQUAL_INT(
+	 "result",
+	 result,
+	 -1 );
+
+	FSAPFS_TEST_ASSERT_IS_NOT_NULL(
+	 "error",
+	 error );
+
+	libcerror_error_free(
+	 &error );
+
+	uncompressed_data_size = (size_t) SSIZE_MAX + 1;
+
+	result = libfsapfs_decompress_data(
+	          fsapfs_test_compression_lzfse_stored_chunk,
+	          17,
+	          LIBFSAPFS_COMPRESSION_METHOD_LZFSE,
+	          uncompressed_data,
+	          &uncompressed_data_size,
+	          &error );
+
+	FSAPFS_TEST_ASSERT_EQUAL_INT(
+	 "result",
+	 result,
+	 -1 );
+
+	FSAPFS_TEST_ASSERT_IS_NOT_NULL(
+	 "error",
+	 error );
+
+	libcerror_error_free(
+	 &error );
+
+#if defined( HAVE_FSAPFS_TEST_MEMORY ) && defined( OPTIMIZATION_DISABLED )
+
+	uncompressed_data_size = 16;
+
+	/* Test libfsapfs_decompress_data with memcpy failing
+	 */
+	fsapfs_test_memcpy_attempts_before_fail = 0;
+
+	result = libfsapfs_decompress_data(
+	          fsapfs_test_compression_lzfse_stored_chunk,
+	          17,
+	          LIBFSAPFS_COMPRESSION_METHOD_LZFSE,
 	          uncompressed_data,
 	          &uncompressed_data_size,
 	          &error );

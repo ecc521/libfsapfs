@@ -4380,7 +4380,8 @@ int libfsapfs_internal_file_entry_get_data_stream(
 		}
 		if( ( internal_file_entry->compressed_data_header->compression_method == 4 )
 		 || ( internal_file_entry->compressed_data_header->compression_method == 8 )
-		 || ( internal_file_entry->compressed_data_header->compression_method == 10 ) )
+		 || ( internal_file_entry->compressed_data_header->compression_method == 10 )
+		 || ( internal_file_entry->compressed_data_header->compression_method == 12 ) )
 		{
 			if( libfsapfs_attributes_get_data_stream(
 			     internal_file_entry->resource_fork_attribute_values,

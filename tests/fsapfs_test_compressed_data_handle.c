@@ -61,6 +61,24 @@ uint8_t fsapfs_test_compressed_data_handle_stored_rsrc_compressed_data1[ 25 ] = 
 uint8_t fsapfs_test_compressed_data_handle_stored_uncompressed_data1[ 16 ] = {
 	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
 
+/* Type 11 (LZFSE xattr): fpmc header (method=11, uncompressed_size=900) + 84-byte LZFSE stream.
+ * The stream is "The quick brown fox jumps over the lazy dog. " x20, generated on macOS 26.4. */
+uint8_t fsapfs_test_compressed_data_handle_lzfse_compressed_data1[ 100 ] = {
+	0x66, 0x70, 0x6d, 0x63, 0x0b, 0x00, 0x00, 0x00, 0x84, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x62, 0x76, 0x78, 0x6e, 0x84, 0x03, 0x00, 0x00, 0x44, 0x00, 0x00, 0x00, 0xe0, 0x10, 0x54, 0x68,
+	0x65, 0x20, 0x71, 0x75, 0x69, 0x63, 0x6b, 0x20, 0x62, 0x72, 0x6f, 0x77, 0x6e, 0x20, 0x66, 0x6f,
+	0x78, 0x20, 0x6a, 0x75, 0x6d, 0x70, 0x73, 0x20, 0x6f, 0x76, 0x65, 0x72, 0x20, 0x74, 0x00, 0x1f,
+	0xea, 0x6c, 0x61, 0x7a, 0x79, 0x20, 0x64, 0x6f, 0x67, 0x2e, 0x20, 0x38, 0x2d, 0xf0, 0xff, 0xf0,
+	0xff, 0xf0, 0xff, 0xf0, 0x0e, 0xe2, 0x2e, 0x20, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x62, 0x76, 0x78, 0x24 };
+
+/* Type 12 (LZFSE rsrc): 1-chunk table + 0xFF stored chunk + 16 bytes raw.
+ * Same chunk-table layout as the type-10 case; exercises LZFSE in the chunk-table parser. */
+uint8_t fsapfs_test_compressed_data_handle_lzfse_rsrc_compressed_data1[ 25 ] = {
+	0x08, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x00,
+	0xff, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+	0x0f };
+
 #if defined( __GNUC__ ) && !defined( LIBFSAPFS_DLL_IMPORT )
 
 /* Tests the libfsapfs_compressed_data_handle_initialize function
@@ -637,6 +655,162 @@ int fsapfs_test_compressed_data_handle_get_compressed_block_offsets(
 		 1 );
 	}
 
+	/* Test LZFSE (type 11 xattr): single fpmc block wrapping a real LZFSE stream
+	 */
+	{
+		libfdata_stream_t *lzfse_stream                                  = NULL;
+		libfsapfs_compressed_data_handle_t *lzfse_compressed_data_handle = NULL;
+
+		result = libfsapfs_data_stream_initialize_from_data(
+		          &lzfse_stream,
+		          fsapfs_test_compressed_data_handle_lzfse_compressed_data1,
+		          100,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		FSAPFS_TEST_ASSERT_IS_NOT_NULL(
+		 "lzfse_stream",
+		 lzfse_stream );
+
+		FSAPFS_TEST_ASSERT_IS_NULL(
+		 "error",
+		 error );
+
+		result = libfsapfs_compressed_data_handle_initialize(
+		          &lzfse_compressed_data_handle,
+		          lzfse_stream,
+		          900,
+		          LIBFSAPFS_COMPRESSION_METHOD_LZFSE,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		FSAPFS_TEST_ASSERT_IS_NOT_NULL(
+		 "lzfse_compressed_data_handle",
+		 lzfse_compressed_data_handle );
+
+		FSAPFS_TEST_ASSERT_IS_NULL(
+		 "error",
+		 error );
+
+		result = libfsapfs_compressed_data_handle_get_compressed_block_offsets(
+		          lzfse_compressed_data_handle,
+		          NULL,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		FSAPFS_TEST_ASSERT_IS_NULL(
+		 "error",
+		 error );
+
+		result = libfsapfs_compressed_data_handle_free(
+		          &lzfse_compressed_data_handle,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		result = libfdata_stream_free(
+		          &lzfse_stream,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+	}
+
+	/* Test LZFSE (type 12 rsrc): 4-byte LE chunk table (same path as LZVN/STORED), 0xFF chunk
+	 */
+	{
+		libfdata_stream_t *lzfse_rsrc_stream                                  = NULL;
+		libfsapfs_compressed_data_handle_t *lzfse_rsrc_compressed_data_handle = NULL;
+
+		result = libfsapfs_data_stream_initialize_from_data(
+		          &lzfse_rsrc_stream,
+		          fsapfs_test_compressed_data_handle_lzfse_rsrc_compressed_data1,
+		          25,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		FSAPFS_TEST_ASSERT_IS_NOT_NULL(
+		 "lzfse_rsrc_stream",
+		 lzfse_rsrc_stream );
+
+		FSAPFS_TEST_ASSERT_IS_NULL(
+		 "error",
+		 error );
+
+		result = libfsapfs_compressed_data_handle_initialize(
+		          &lzfse_rsrc_compressed_data_handle,
+		          lzfse_rsrc_stream,
+		          16,
+		          LIBFSAPFS_COMPRESSION_METHOD_LZFSE,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		FSAPFS_TEST_ASSERT_IS_NOT_NULL(
+		 "lzfse_rsrc_compressed_data_handle",
+		 lzfse_rsrc_compressed_data_handle );
+
+		FSAPFS_TEST_ASSERT_IS_NULL(
+		 "error",
+		 error );
+
+		result = libfsapfs_compressed_data_handle_get_compressed_block_offsets(
+		          lzfse_rsrc_compressed_data_handle,
+		          NULL,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		FSAPFS_TEST_ASSERT_IS_NULL(
+		 "error",
+		 error );
+
+		result = libfsapfs_compressed_data_handle_free(
+		          &lzfse_rsrc_compressed_data_handle,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		result = libfdata_stream_free(
+		          &lzfse_rsrc_stream,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+	}
+
 	/* Test error cases
 	 */
 	result = libfsapfs_compressed_data_handle_get_compressed_block_offsets(
@@ -924,6 +1098,154 @@ int fsapfs_test_compressed_data_handle_read_segment_data(
 
 		result = libfdata_stream_free(
 		          &stored_rsrc_stream,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+	}
+	/* Test LZFSE: read 900 bytes via the fpmc single-block path (real LZFSE stream)
+	 */
+	{
+		uint8_t lzfse_segment_data[ 1024 ];
+
+		libfdata_stream_t *lzfse_stream                                  = NULL;
+		libfsapfs_compressed_data_handle_t *lzfse_compressed_data_handle = NULL;
+
+		result = libfsapfs_data_stream_initialize_from_data(
+		          &lzfse_stream,
+		          fsapfs_test_compressed_data_handle_lzfse_compressed_data1,
+		          100,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		result = libfsapfs_compressed_data_handle_initialize(
+		          &lzfse_compressed_data_handle,
+		          lzfse_stream,
+		          900,
+		          LIBFSAPFS_COMPRESSION_METHOD_LZFSE,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		read_count = libfsapfs_compressed_data_handle_read_segment_data(
+		              lzfse_compressed_data_handle,
+		              NULL,
+		              0,
+		              0,
+		              lzfse_segment_data,
+		              900,
+		              0,
+		              0,
+		              &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_SSIZE(
+		 "read_count",
+		 read_count,
+		 (ssize_t) 900 );
+
+		FSAPFS_TEST_ASSERT_IS_NULL(
+		 "error",
+		 error );
+
+		result = libfsapfs_compressed_data_handle_free(
+		          &lzfse_compressed_data_handle,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		result = libfdata_stream_free(
+		          &lzfse_stream,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+	}
+	/* Test LZFSE rsrc: read 16 bytes of 0xFF-prefixed plaintext via the chunk table path
+	 */
+	{
+		uint8_t lzfse_rsrc_segment_data[ 16 ];
+
+		libfdata_stream_t *lzfse_rsrc_stream                                  = NULL;
+		libfsapfs_compressed_data_handle_t *lzfse_rsrc_compressed_data_handle = NULL;
+
+		result = libfsapfs_data_stream_initialize_from_data(
+		          &lzfse_rsrc_stream,
+		          fsapfs_test_compressed_data_handle_lzfse_rsrc_compressed_data1,
+		          25,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		result = libfsapfs_compressed_data_handle_initialize(
+		          &lzfse_rsrc_compressed_data_handle,
+		          lzfse_rsrc_stream,
+		          16,
+		          LIBFSAPFS_COMPRESSION_METHOD_LZFSE,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		read_count = libfsapfs_compressed_data_handle_read_segment_data(
+		              lzfse_rsrc_compressed_data_handle,
+		              NULL,
+		              0,
+		              0,
+		              lzfse_rsrc_segment_data,
+		              16,
+		              0,
+		              0,
+		              &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_SSIZE(
+		 "read_count",
+		 read_count,
+		 (ssize_t) 16 );
+
+		FSAPFS_TEST_ASSERT_IS_NULL(
+		 "error",
+		 error );
+
+		result = memory_compare(
+		          lzfse_rsrc_segment_data,
+		          fsapfs_test_compressed_data_handle_stored_uncompressed_data1,
+		          16 );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 0 );
+
+		result = libfsapfs_compressed_data_handle_free(
+		          &lzfse_rsrc_compressed_data_handle,
+		          &error );
+
+		FSAPFS_TEST_ASSERT_EQUAL_INT(
+		 "result",
+		 result,
+		 1 );
+
+		result = libfdata_stream_free(
+		          &lzfse_rsrc_stream,
 		          &error );
 
 		FSAPFS_TEST_ASSERT_EQUAL_INT(
