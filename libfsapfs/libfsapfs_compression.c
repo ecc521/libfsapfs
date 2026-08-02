@@ -274,9 +274,8 @@ int libfsapfs_decompress_data(
 #endif /* ( defined( HAVE_ZLIB ) && defined( HAVE_ZLIB_UNCOMPRESS ) ) || defined( ZLIB_DLL ) */
 		}
 	}
-	else if( compression_method == LIBFSAPFS_COMPRESSION_METHOD_STORED )
+	else if( compression_method == LIBFSAPFS_COMPRESSION_METHOD_RAW )
 	{
-		/* Types 9 and 10 store data verbatim after a 0xCC sentinel byte */
 		if( ( compressed_data_size < 1 )
 		 || ( compressed_data[ 0 ] != 0xcc ) )
 		{

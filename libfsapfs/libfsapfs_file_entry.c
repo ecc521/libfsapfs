@@ -4359,7 +4359,7 @@ int libfsapfs_internal_file_entry_get_data_stream(
 
 			case 9:
 			case 10:
-				compression_method = LIBFSAPFS_COMPRESSION_METHOD_STORED;
+				compression_method = LIBFSAPFS_COMPRESSION_METHOD_RAW;
 				break;
 
 			case 11:
