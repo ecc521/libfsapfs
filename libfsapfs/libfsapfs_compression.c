@@ -149,7 +149,7 @@ int libfsapfs_decompress_data(
 				 error,
 				 LIBCERROR_ERROR_DOMAIN_MEMORY,
 				 LIBCERROR_MEMORY_ERROR_COPY_FAILED,
-				 "%s: unable to compressed to uncompressed data.",
+				 "%s: unable to copy compressed to uncompressed data.",
 				 function );
 
 				return( -1 );
@@ -283,7 +283,7 @@ int libfsapfs_decompress_data(
 			 error,
 			 LIBCERROR_ERROR_DOMAIN_RUNTIME,
 			 LIBCERROR_RUNTIME_ERROR_UNSUPPORTED_VALUE,
-			 "%s: invalid stored data: missing 0xCC sentinel byte.",
+			 "%s: invalid raw compressed data - unsupported marker byte.",
 			 function );
 
 			return( -1 );
@@ -332,7 +332,7 @@ int libfsapfs_decompress_data(
 			 error,
 			 LIBCERROR_ERROR_DOMAIN_MEMORY,
 			 LIBCERROR_MEMORY_ERROR_COPY_FAILED,
-			 "%s: unable to copy stored data.",
+			 "%s: unable to copy compressed to uncompressed data.",
 			 function );
 
 			return( -1 );
@@ -412,7 +412,7 @@ int libfsapfs_decompress_data(
 				 error,
 				 LIBCERROR_ERROR_DOMAIN_MEMORY,
 				 LIBCERROR_MEMORY_ERROR_COPY_FAILED,
-				 "%s: unable to compressed to uncompressed data.",
+				 "%s: unable to copy compressed to uncompressed data.",
 				 function );
 
 				return( -1 );
